@@ -3,6 +3,7 @@ import FileUpload from './components/FileUpload'
 import GeotechUpload from './components/GeotechUpload'
 import GeotechDataDisplay from './components/GeotechDataDisplay'
 import DetectionResults from './components/DetectionResults'
+import ImageVisualization from './components/ImageVisualization'
 import { detectRedElements } from './detectors/redElements'
 import { detectHighlights } from './detectors/highlights'
 import { detectNoRefs } from './detectors/noRefs'
@@ -19,6 +20,7 @@ function App() {
   const [geotechData, setGeotechData] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  const [geotechSectionExpanded, setGeotechSectionExpanded] = useState(false)
   const [progress, setProgress] = useState({
     stage: '',
     currentPage: 0,
@@ -136,19 +138,27 @@ function App() {
           }))
         })
 
-        const noRefs = await detectNoRefs(pageData, (count) => {
-          setProgress(prev => ({
-            ...prev,
-            currentCounts: { ...prev.currentCounts, noRefs: count }
-          }))
-        })
+        const noRefs = await detectNoRefs(
+          pageData,
+          (count) => {
+            setProgress(prev => ({
+              ...prev,
+              currentCounts: { ...prev.currentCounts, noRefs: count }
+            }))
+          },
+          result.pdfPages ? result.pdfPages[i] : null
+        )
 
-        const overlappingText = await detectOverlappingText(pageData, (count) => {
-          setProgress(prev => ({
-            ...prev,
-            currentCounts: { ...prev.currentCounts, overlappingText: count }
-          }))
-        })
+        const overlappingText = await detectOverlappingText(
+          pageData,
+          (count) => {
+            setProgress(prev => ({
+              ...prev,
+              currentCounts: { ...prev.currentCounts, overlappingText: count }
+            }))
+          },
+          result.pdfPages ? result.pdfPages[i] : null
+        )
 
         const pageResult = {
           pageNumber: pageNum,
@@ -166,7 +176,11 @@ function App() {
           ...prev,
           pageResults: [...prev.pageResults, {
             pageNumber: pageNum,
-            totalIssues: redElements.count + highlights.count + noRefs.count + overlappingText.count + (pageNum === 1 ? globalGeotechVerification.count : 0)
+            redElements: redElements.count,
+            highlights: highlights.count,
+            noRefs: noRefs.count,
+            overlappingText: overlappingText.count,
+            geotechVerification: pageNum === 1 ? globalGeotechVerification.count : 0
           }]
         }))
       }
@@ -218,6 +232,8 @@ function App() {
           <FileUpload onFileProcessed={handleFileUpload} />
         </div>
 
+        {results && <DetectionResults results={results} pages={pages} geotechData={geotechData} summaryOnly={true} />}
+
         <div style={{
           marginTop: '2rem',
           padding: '1.5rem',
@@ -225,32 +241,68 @@ function App() {
           borderRadius: '8px',
           border: '1px solid #dee2e6'
         }}>
-          <h3 style={{
-            fontSize: '1.2rem',
-            color: '#2c3e50',
-            marginTop: 0,
-            marginBottom: '0.5rem'
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: geotechSectionExpanded ? '0.5rem' : 0
           }}>
-            Optional: Geotechnical Report Verification
-          </h3>
-          <p style={{
-            color: '#495057',
-            fontSize: '0.9rem',
-            marginBottom: '1rem',
-            lineHeight: '1.5'
-          }}>
-            Upload a geotechnical report to automatically verify that seismic design values
-            (Sds, Sd1, Ss, S1, Fa, Fv, Site Class, etc.) in your drawing's general notes
-            match the values from the geotech report.
-          </p>
-          <GeotechUpload onGeotechProcessed={handleGeotechUpload} geotechData={geotechData} />
-          {(geotechData || pdfPages) && (
-            <GeotechDataDisplay
-              geotechData={geotechData}
-              pdfPages={pdfPages}
-            />
+            <h3 style={{
+              fontSize: '1.2rem',
+              color: '#2c3e50',
+              margin: 0
+            }}>
+              Optional: Geotechnical Report Verification
+            </h3>
+            <button
+              onClick={() => setGeotechSectionExpanded(!geotechSectionExpanded)}
+              style={{
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                fontSize: '1.5rem',
+                color: '#2c3e50',
+                padding: '0 0.5rem',
+                lineHeight: 1
+              }}
+              title={geotechSectionExpanded ? 'Collapse section' : 'Expand section'}
+            >
+              {geotechSectionExpanded ? '−' : '+'}
+            </button>
+          </div>
+          {geotechSectionExpanded && (
+            <>
+              <p style={{
+                color: '#495057',
+                fontSize: '0.9rem',
+                marginBottom: '1rem',
+                lineHeight: '1.5',
+                marginTop: '0.5rem'
+              }}>
+                Upload a geotechnical report to automatically verify that seismic design values
+                (Sds, Sd1, Ss, S1, Fa, Fv, Site Class, etc.) in your drawing's general notes
+                match the values from the geotech report.
+              </p>
+              <GeotechUpload onGeotechProcessed={handleGeotechUpload} geotechData={geotechData} />
+              {(geotechData || pdfPages) && (
+                <GeotechDataDisplay
+                  geotechData={geotechData}
+                  pdfPages={pdfPages}
+                />
+              )}
+            </>
           )}
         </div>
+
+        {/* Individual page visualizations appear after geotech section */}
+        {results && results.map((pageResult, index) => (
+          <ImageVisualization
+            key={index}
+            pageNumber={pageResult.pageNumber}
+            imageData={pages[index]}
+            results={pageResult}
+          />
+        ))}
 
         {loading && (
           <div className="progress-container" style={{
@@ -271,25 +323,36 @@ function App() {
                 <div style={{ marginTop: '10px' }}>
                   <strong style={{ color: '#000' }}>Completed:</strong>
                   <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                    {progress.pageResults.map(pageResult => (
-                      <div key={pageResult.pageNumber} style={{
-                        padding: '6px 10px',
-                        backgroundColor: 'white',
-                        borderRadius: '4px',
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        color: '#000'
-                      }}>
-                        <span>Page {pageResult.pageNumber}</span>
-                        <span style={{
-                          color: pageResult.totalIssues > 0 ? '#d32f2f' : '#4caf50',
-                          fontWeight: 'bold'
+                    {progress.pageResults.map(pageResult => {
+                      const totalIssues = pageResult.redElements + pageResult.highlights + pageResult.noRefs + pageResult.overlappingText + pageResult.geotechVerification
+                      return (
+                        <div key={pageResult.pageNumber} style={{
+                          padding: '8px 12px',
+                          backgroundColor: 'white',
+                          borderRadius: '4px',
+                          color: '#000'
                         }}>
-                          {pageResult.totalIssues} issue{pageResult.totalIssues !== 1 ? 's' : ''}
-                        </span>
-                      </div>
-                    ))}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                            <span style={{ fontWeight: 'bold' }}>Page {pageResult.pageNumber}</span>
+                            <span style={{
+                              color: totalIssues > 0 ? '#d32f2f' : '#4caf50',
+                              fontWeight: 'bold'
+                            }}>
+                              {totalIssues} total
+                            </span>
+                          </div>
+                          <div style={{ fontSize: '13px', color: '#555', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                            <span>Red: <strong style={{ color: '#00cc00' }}>{pageResult.redElements}</strong></span>
+                            <span>Highlights: <strong style={{ color: '#ff6600' }}>{pageResult.highlights}</strong></span>
+                            <span>No-Refs: <strong style={{ color: '#0066ff' }}>{pageResult.noRefs}</strong></span>
+                            <span>Overlaps: <strong style={{ color: '#cc00cc' }}>{pageResult.overlappingText}</strong></span>
+                            {geotechData && pageResult.geotechVerification > 0 && (
+                              <span>Geotech: <strong style={{ color: '#cc0000' }}>{pageResult.geotechVerification}</strong></span>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
                   </div>
                 </div>
               )}
@@ -315,8 +378,6 @@ function App() {
         )}
 
         {error && <div className="error" style={{color: 'red', padding: '20px'}}>{error}</div>}
-
-        {results && <DetectionResults results={results} pages={pages} geotechData={geotechData} />}
       </main>
     </div>
   )

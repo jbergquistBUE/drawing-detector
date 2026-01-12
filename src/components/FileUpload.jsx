@@ -86,6 +86,8 @@ function FileUpload({ onFileProcessed }) {
 
       // Extract text content from the page
       const textContent = await page.getTextContent()
+
+      // Store both simplified items and raw text items for different detector needs
       const items = textContent.items.map(item => ({
         text: item.str,
         x: item.transform[4],
@@ -97,7 +99,9 @@ function FileUpload({ onFileProcessed }) {
       pdfPages.push({
         pageNumber: pageNum,
         items: items,
-        fullText: items.map(item => item.text).join(' ')
+        textItems: textContent.items, // Raw text items with transform arrays
+        fullText: items.map(item => item.text).join(' '),
+        viewport: viewport
       })
     }
 

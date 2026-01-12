@@ -1,8 +1,100 @@
 /**
- * Overlapping Text Detector
- * Detects overlapping or colliding text elements in engineering drawings
- * by identifying areas with abnormally high black pixel density
+ * Overlapping Text Detector (Hybrid Approach)
+ * Detects overlapping or colliding text elements in engineering drawings using:
+ * 1. PDF text position analysis - Detects text bounding box overlaps
+ * 2. Pixel density verification - Confirms visual overlap with high black pixel density
  */
+
+/**
+ * Checks if a text item is likely actual text (not graphics/symbols)
+ * @param {Object} item - PDF text item
+ * @returns {boolean} True if likely text
+ */
+const isLikelyText = (item) => {
+  const text = item.str.trim()
+
+  // Filter out empty strings
+  if (!text) return false
+
+  // Filter out single special characters (likely graphics symbols)
+  if (text.length === 1 && !/[a-zA-Z0-9]/.test(text)) return false
+
+  // Filter out items that are too small (likely decorative dots/symbols)
+  if (item.height < 4 || item.width < 4) return false
+
+  // Filter out items with very small font sizes (likely symbols)
+  if (item.transform && Math.abs(item.transform[0]) < 4) return false
+
+  return true
+}
+
+/**
+ * Detects overlapping text using PDF text positions
+ * @param {Object} pdfPage - PDF page object with text items
+ * @returns {Array} Array of overlapping text regions with text content
+ */
+const detectOverlapsFromPDF = (pdfPage) => {
+  if (!pdfPage || !pdfPage.textItems) {
+    return []
+  }
+
+  const overlaps = []
+
+  // Filter to only include likely text items (not graphics)
+  const textItems = pdfPage.textItems.filter(isLikelyText)
+
+  // Check each pair of text items for overlap
+  for (let i = 0; i < textItems.length; i++) {
+    const item1 = textItems[i]
+
+    for (let j = i + 1; j < textItems.length; j++) {
+      const item2 = textItems[j]
+
+      // Calculate bounding boxes
+      const box1 = {
+        x: item1.transform[4],
+        y: item1.transform[5],
+        width: item1.width,
+        height: item1.height
+      }
+
+      const box2 = {
+        x: item2.transform[4],
+        y: item2.transform[5],
+        width: item2.width,
+        height: item2.height
+      }
+
+      // Check for overlap
+      const horizontalOverlap = !(box1.x + box1.width < box2.x || box2.x + box2.width < box1.x)
+      const verticalOverlap = !(box1.y + box1.height < box2.y || box2.y + box2.height < box1.y)
+
+      if (horizontalOverlap && verticalOverlap) {
+        // Calculate overlap region
+        const overlapX = Math.max(box1.x, box2.x)
+        const overlapY = Math.max(box1.y, box2.y)
+        const overlapWidth = Math.min(box1.x + box1.width, box2.x + box2.width) - overlapX
+        const overlapHeight = Math.min(box1.y + box1.height, box2.y + box2.height) - overlapY
+
+        // Only report significant overlaps (not just touching edges)
+        // Increased threshold to avoid small symbol overlaps
+        if (overlapWidth > 5 && overlapHeight > 5) {
+          overlaps.push({
+            x: Math.floor(overlapX),
+            y: Math.floor(overlapY),
+            width: Math.ceil(overlapWidth),
+            height: Math.ceil(overlapHeight),
+            text1: item1.str,
+            text2: item2.str,
+            pixelCount: Math.ceil(overlapWidth * overlapHeight)
+          })
+        }
+      }
+    }
+  }
+
+  return overlaps
+}
 
 const traceBlackRegion = (data, width, height, startX, startY, visited) => {
   let minX = startX, maxX = startX
@@ -227,7 +319,7 @@ const mergeNearbyRegions = (elements) => {
   return currentElements
 }
 
-export async function detectOverlappingText(imageData, onProgress) {
+export async function detectOverlappingText(imageData, onProgress, pdfPage = null) {
   const canvas = document.createElement('canvas')
   const ctx = canvas.getContext('2d')
 
@@ -243,15 +335,98 @@ export async function detectOverlappingText(imageData, onProgress) {
       const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height)
       const data = pixels.data
 
-      const elements = findOverlappingTextWithProgress(data, canvas.width, canvas.height, onProgress)
+      let elements = []
+
+      // Hybrid approach: Use PDF text to identify candidates, verify with pixels
+      if (pdfPage && pdfPage.textItems) {
+        console.log('[OverlappingText] Using hybrid detection with PDF text analysis')
+        const pdfOverlaps = detectOverlapsFromPDF(pdfPage)
+
+        console.log(`[OverlappingText] PDF detected ${pdfOverlaps.length} potential overlaps`)
+
+        if (pdfOverlaps.length > 0) {
+          // Filter PDF overlaps to only those with substantial visual overlap
+          for (const overlap of pdfOverlaps) {
+            // Scale PDF coordinates to image coordinates
+            const scaleX = canvas.width / pdfPage.viewport.width
+            const scaleY = canvas.height / pdfPage.viewport.height
+
+            const scaledOverlap = {
+              x: Math.floor(overlap.x * scaleX),
+              y: Math.floor(canvas.height - (overlap.y + overlap.height) * scaleY),
+              width: Math.ceil(overlap.width * scaleX),
+              height: Math.ceil(overlap.height * scaleY),
+              text1: overlap.text1,
+              text2: overlap.text2,
+              pixelCount: overlap.pixelCount
+            }
+
+            // Verify with pixel density - must be substantial overlap
+            const density = calculateDensity(data, canvas.width, canvas.height, scaledOverlap)
+
+            // Only accept if density is high enough (real visual overlap)
+            // AND the overlap region is text-sized
+            if (density > 0.4 &&
+                scaledOverlap.width > 20 &&
+                scaledOverlap.height > 8 &&
+                scaledOverlap.height < 40) {
+
+              console.log(`[OverlappingText] ✓ "${overlap.text1}" overlaps "${overlap.text2}" (density: ${density.toFixed(2)})`)
+
+              elements.push({
+                ...scaledOverlap,
+                density: density,
+                detectionMethod: 'hybrid'
+              })
+
+              if (onProgress) {
+                onProgress(elements.length)
+              }
+            }
+          }
+
+          console.log(`[OverlappingText] Hybrid verified ${elements.length} real overlaps`)
+        }
+
+        // Always run pixel detection as fallback/supplement
+        console.log('[OverlappingText] Running pixel detection as fallback')
+        const pixelElements = findOverlappingTextWithProgress(data, canvas.width, canvas.height, onProgress)
+
+        // Merge hybrid and pixel results, removing duplicates
+        for (const pixelElem of pixelElements) {
+          const isDuplicate = elements.some(hybridElem =>
+            Math.abs(hybridElem.x - pixelElem.x) < 50 &&
+            Math.abs(hybridElem.y - pixelElem.y) < 50
+          )
+
+          if (!isDuplicate) {
+            elements.push(pixelElem)
+          }
+        }
+
+        console.log(`[OverlappingText] Final count: ${elements.length} overlaps`)
+      } else {
+        // No PDF data available, use pixel-only detection
+        console.log('[OverlappingText] No PDF data, using pixel-only detection')
+        elements = findOverlappingTextWithProgress(data, canvas.width, canvas.height, onProgress)
+      }
+
+      // Generate message with text content if available
+      let message = 'No overlapping text detected'
+      if (elements.length > 0) {
+        const hasTextInfo = elements.some(e => e.text1 && e.text2)
+        if (hasTextInfo) {
+          message = `Found ${elements.length} overlapping text region(s) with text content`
+        } else {
+          message = `Found ${elements.length} overlapping text region(s)`
+        }
+      }
 
       resolve({
         detected: elements.length > 0,
         count: elements.length,
         locations: elements,
-        message: elements.length > 0
-          ? `Found ${elements.length} overlapping text region(s)`
-          : 'No overlapping text detected'
+        message: message
       })
     }
   })

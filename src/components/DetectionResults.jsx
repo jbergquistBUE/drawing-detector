@@ -2,7 +2,7 @@ import './DetectionResults.css'
 import ImageVisualization from './ImageVisualization'
 import jsPDF from 'jspdf'
 
-function DetectionResults({ results, pages, geotechData }) {
+function DetectionResults({ results, pages, geotechData, summaryOnly = false }) {
   const detectorNames = {
     redElements: 'Red Elements',
     highlights: 'Highlights',
@@ -145,23 +145,82 @@ function DetectionResults({ results, pages, geotechData }) {
     <div className="detection-results">
       <h2>Detection Results - Overall Summary</h2>
 
-      <div className="results-grid">
-        {Object.entries(overallSummary).map(([key, summary]) => (
-          <div key={key} className={`result-card ${getStatusClass(summary.detected)}`}>
-            <div className="result-header">
-              <span className="result-icon">{getStatusIcon(summary.detected)}</span>
-              <h3>{detectorNames[key]}</h3>
-            </div>
+      <div style={{ overflowX: 'auto', marginBottom: '2rem' }}>
+        <table style={{
+          width: '100%',
+          borderCollapse: 'collapse',
+          backgroundColor: 'white',
+          boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+          borderRadius: '8px'
+        }}>
+          <thead>
+            <tr style={{ backgroundColor: '#f8f9fa' }}>
+              <th style={{ padding: '8px', textAlign: 'left', borderBottom: '2px solid #dee2e6', fontWeight: 'bold', color: '#000' }}>Page</th>
+              <th style={{ padding: '8px', textAlign: 'center', borderBottom: '2px solid #dee2e6', fontWeight: 'bold', color: '#00cc00' }}>Red</th>
+              <th style={{ padding: '8px', textAlign: 'center', borderBottom: '2px solid #dee2e6', fontWeight: 'bold', color: '#ff6600' }}>Highlights</th>
+              <th style={{ padding: '8px', textAlign: 'center', borderBottom: '2px solid #dee2e6', fontWeight: 'bold', color: '#0066ff' }}>No-Refs</th>
+              <th style={{ padding: '8px', textAlign: 'center', borderBottom: '2px solid #dee2e6', fontWeight: 'bold', color: '#cc00cc' }}>Overlaps</th>
+              {geotechData && (
+                <th style={{ padding: '8px', textAlign: 'center', borderBottom: '2px solid #dee2e6', fontWeight: 'bold', color: '#cc0000' }}>Geotech</th>
+              )}
+              <th style={{ padding: '8px', textAlign: 'center', borderBottom: '2px solid #dee2e6', fontWeight: 'bold', color: '#000' }}>Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {results.map((pageResult, index) => {
+              const totalIssues =
+                (pageResult.redElements?.count || 0) +
+                (pageResult.highlights?.count || 0) +
+                (pageResult.noRefs?.count || 0) +
+                (pageResult.overlappingText?.count || 0) +
+                (pageResult.geotechVerification?.count || 0)
 
-            <div className="result-body">
-              <p className="result-message">
-                {summary.count > 0
-                  ? `Found ${summary.count} total across all pages`
-                  : `No ${detectorNames[key].toLowerCase()} detected`}
-              </p>
-            </div>
-          </div>
-        ))}
+              return (
+                <tr key={index} style={{ borderBottom: '1px solid #dee2e6' }}>
+                  <td style={{ padding: '6px 8px', fontWeight: 'bold', color: '#000' }}>Page {pageResult.pageNumber}</td>
+                  <td style={{ padding: '6px 8px', textAlign: 'center', color: pageResult.redElements?.count > 0 ? '#00cc00' : '#999' }}>
+                    {pageResult.redElements?.count || 0}
+                  </td>
+                  <td style={{ padding: '6px 8px', textAlign: 'center', color: pageResult.highlights?.count > 0 ? '#ff6600' : '#999' }}>
+                    {pageResult.highlights?.count || 0}
+                  </td>
+                  <td style={{ padding: '6px 8px', textAlign: 'center', color: pageResult.noRefs?.count > 0 ? '#0066ff' : '#999' }}>
+                    {pageResult.noRefs?.count || 0}
+                  </td>
+                  <td style={{ padding: '6px 8px', textAlign: 'center', color: pageResult.overlappingText?.count > 0 ? '#cc00cc' : '#999' }}>
+                    {pageResult.overlappingText?.count || 0}
+                  </td>
+                  {geotechData && (
+                    <td style={{ padding: '6px 8px', textAlign: 'center', color: pageResult.geotechVerification?.count > 0 ? '#cc0000' : '#999' }}>
+                      {pageResult.geotechVerification?.count || 0}
+                    </td>
+                  )}
+                  <td style={{
+                    padding: '6px 8px',
+                    textAlign: 'center',
+                    fontWeight: 'bold',
+                    color: totalIssues > 0 ? '#d32f2f' : '#4caf50'
+                  }}>
+                    {totalIssues}
+                  </td>
+                </tr>
+              )
+            })}
+            <tr style={{ backgroundColor: '#f8f9fa', fontWeight: 'bold' }}>
+              <td style={{ padding: '8px', color: '#000' }}>TOTAL</td>
+              <td style={{ padding: '8px', textAlign: 'center', color: '#00cc00' }}>{overallSummary.redElements.count}</td>
+              <td style={{ padding: '8px', textAlign: 'center', color: '#ff6600' }}>{overallSummary.highlights.count}</td>
+              <td style={{ padding: '8px', textAlign: 'center', color: '#0066ff' }}>{overallSummary.noRefs.count}</td>
+              <td style={{ padding: '8px', textAlign: 'center', color: '#cc00cc' }}>{overallSummary.overlappingText.count}</td>
+              {geotechData && (
+                <td style={{ padding: '8px', textAlign: 'center', color: '#cc0000' }}>{overallSummary.geotechVerification.count}</td>
+              )}
+              <td style={{ padding: '8px', textAlign: 'center', color: '#d32f2f' }}>
+                {Object.values(overallSummary).reduce((sum, s) => sum + s.count, 0)}
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
 
       <div className="results-summary">
@@ -176,8 +235,8 @@ function DetectionResults({ results, pages, geotechData }) {
         </button>
       </div>
 
-      {/* Display each page separately */}
-      {results.map((pageResult, index) => (
+      {/* Display each page separately - only if not summaryOnly mode */}
+      {!summaryOnly && results.map((pageResult, index) => (
         <ImageVisualization
           key={index}
           pageNumber={pageResult.pageNumber}

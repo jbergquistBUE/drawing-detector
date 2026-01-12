@@ -1,117 +1,68 @@
 /**
- * No-Refs Detector
- * Detects missing or incomplete reference callouts in engineering drawings (-/--- pattern)
+ * No-Refs Detector (PDF Text-Based)
+ * Detects missing or incomplete reference callouts in engineering drawings
+ * Searches for patterns like: -/---, -/-, --/---, etc.
  */
 
-const traceTextPattern = (data, width, height, startX, startY, visited) => {
-  let minX = startX, maxX = startX
-  let minY = startY, maxY = startY
-  let pixelCount = 0
+/**
+ * Detects missing references from PDF text content
+ * @param {Object} pdfPage - PDF page object with text items
+ * @param {number} canvasWidth - Canvas width for coordinate scaling
+ * @param {number} canvasHeight - Canvas height for coordinate scaling
+ * @returns {Array} Array of missing reference locations
+ */
+const detectNoRefsFromPDF = (pdfPage, canvasWidth, canvasHeight) => {
+  if (!pdfPage || !pdfPage.textItems) {
+    return []
+  }
 
-  const queue = [[startX, startY]]
+  const noRefs = []
 
-  while (queue.length > 0 && pixelCount < 5000) {
-    const [x, y] = queue.shift()
-    const key = `${x},${y}`
+  // Pattern for missing references: dash(es) / dash(es) with optional trailing punctuation
+  // Matches: -/---, -/-, --/---, ---/---, -/---., etc.
+  const noRefPattern = /^-{1,4}\/-{1,4}[.,;:]?$/
 
-    if (visited.has(key) || x < 0 || x >= width || y < 0 || y >= height) {
-      continue
+  console.log('[NoRefs] Analyzing text items...')
+  console.log(`[NoRefs] Total text items: ${pdfPage.textItems.length}`)
+
+  for (const item of pdfPage.textItems) {
+    const text = item.str.trim()
+
+    // Log all text items that contain dashes and slashes for debugging
+    if (text.includes('-') && text.includes('/')) {
+      console.log(`[NoRefs] Found dash/slash text: "${text}" (length: ${text.length})`)
     }
 
-    const idx = (y * width + x) * 4
-    const r = data[idx]
-    const g = data[idx + 1]
-    const b = data[idx + 2]
+    if (noRefPattern.test(text)) {
+      console.log(`[NoRefs] ✓ Matched pattern: "${text}"`)
 
-    const isBlack = r < 60 && g < 60 && b < 60
+      // Scale PDF coordinates to image coordinates
+      const scaleX = canvasWidth / pdfPage.viewport.width
+      const scaleY = canvasHeight / pdfPage.viewport.height
 
-    if (isBlack) {
-      visited.add(key)
-      pixelCount++
+      // PDF coordinates have origin at bottom-left, canvas has origin at top-left
+      const x = Math.floor(item.transform[4] * scaleX)
+      const y = Math.floor(canvasHeight - (item.transform[5] + item.height) * scaleY)
+      const width = Math.ceil(item.width * scaleX)
+      const height = Math.ceil(item.height * scaleY)
 
-      minX = Math.min(minX, x)
-      maxX = Math.max(maxX, x)
-      minY = Math.min(minY, y)
-      maxY = Math.max(maxY, y)
+      console.log(`[NoRefs] "${text}" at PDF coords (${item.transform[4]}, ${item.transform[5]}) -> canvas (${x}, ${y}) size ${width}x${height}`)
 
-      if (maxY - minY < 20) {
-        queue.push([x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1])
-      } else {
-        queue.push([x + 1, y], [x - 1, y])
-      }
+      noRefs.push({
+        x: x,
+        y: y,
+        width: width,
+        height: height,
+        text: text,
+        detectionMethod: 'pdf-text'
+      })
     }
   }
 
-  return {
-    x: minX,
-    y: minY,
-    width: maxX - minX,
-    height: maxY - minY,
-    pixelCount
-  }
+  return noRefs
 }
 
-const checkForGapsInPattern = (data, width, element) => {
-  let gapsFound = 0
-  const midY = Math.floor(element.y + element.height / 2)
-
-  for (let x = element.x; x < element.x + element.width; x += 3) {
-    const idx = (midY * width + x) * 4
-    const r = data[idx]
-    const g = data[idx + 1]
-    const b = data[idx + 2]
-
-    if (r > 200 && g > 200 && b > 200) {
-      gapsFound++
-    }
-  }
-
-  return gapsFound >= 2 && gapsFound <= 8
-}
-
-const findDashSlashPattern = (data, width, height) => {
-  const elements = []
-  const visited = new Set()
-
-  for (let y = 0; y < height; y += 2) {
-    for (let x = 0; x < width; x += 5) {
-      const idx = (y * width + x) * 4
-      const r = data[idx]
-      const g = data[idx + 1]
-      const b = data[idx + 2]
-
-      const isBlack = r < 60 && g < 60 && b < 60
-
-      if (isBlack) {
-        const key = `${x},${y}`
-        if (!visited.has(key)) {
-          const element = traceTextPattern(data, width, height, x, y, visited)
-
-          if (!element) continue
-
-          const isDashSlashPattern =
-            element.pixelCount > 40 &&
-            element.pixelCount < 300 &&
-            element.width > 25 &&
-            element.width < 70 &&
-            element.height > 5 &&
-            element.height < 18 &&
-            element.width / element.height > 2.5 &&
-            element.width / element.height < 7 &&
-            checkForGapsInPattern(data, width, element)
-
-          if (isDashSlashPattern) {
-            elements.push(element)
-          }
-        }
-      }
-    }
-  }
-
-  return elements
-}
-
-export async function detectNoRefs(imageData, onProgress) {
+export async function detectNoRefs(imageData, onProgress, pdfPage = null) {
   const canvas = document.createElement('canvas')
   const ctx = canvas.getContext('2d')
 
@@ -124,10 +75,20 @@ export async function detectNoRefs(imageData, onProgress) {
       canvas.height = img.height
       ctx.drawImage(img, 0, 0)
 
-      const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height)
-      const data = pixels.data
+      let elements = []
 
-      const elements = findDashSlashPatternWithProgress(data, canvas.width, canvas.height, onProgress)
+      // Use PDF text extraction if available
+      if (pdfPage && pdfPage.textItems) {
+        console.log('[NoRefs] Using PDF text detection')
+        elements = detectNoRefsFromPDF(pdfPage, canvas.width, canvas.height)
+        console.log(`[NoRefs] Found ${elements.length} missing references`)
+
+        if (onProgress) {
+          onProgress(elements.length)
+        }
+      } else {
+        console.log('[NoRefs] No PDF data available, cannot detect missing references')
+      }
 
       resolve({
         detected: elements.length > 0,
@@ -139,49 +100,4 @@ export async function detectNoRefs(imageData, onProgress) {
       })
     }
   })
-}
-
-const findDashSlashPatternWithProgress = (data, width, height, onProgress) => {
-  const elements = []
-  const visited = new Set()
-
-  for (let y = 0; y < height; y += 2) {
-    for (let x = 0; x < width; x += 5) {
-      const idx = (y * width + x) * 4
-      const r = data[idx]
-      const g = data[idx + 1]
-      const b = data[idx + 2]
-
-      const isBlack = r < 60 && g < 60 && b < 60
-
-      if (isBlack) {
-        const key = `${x},${y}`
-        if (!visited.has(key)) {
-          const element = traceTextPattern(data, width, height, x, y, visited)
-
-          if (!element) continue
-
-          const isDashSlashPattern =
-            element.pixelCount > 40 &&
-            element.pixelCount < 300 &&
-            element.width > 25 &&
-            element.width < 70 &&
-            element.height > 5 &&
-            element.height < 18 &&
-            element.width / element.height > 2.5 &&
-            element.width / element.height < 7 &&
-            checkForGapsInPattern(data, width, element)
-
-          if (isDashSlashPattern) {
-            elements.push(element)
-            if (onProgress) {
-              onProgress(elements.length)
-            }
-          }
-        }
-      }
-    }
-  }
-
-  return elements
 }

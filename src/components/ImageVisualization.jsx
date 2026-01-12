@@ -79,6 +79,25 @@ function ImageVisualization({ pageNumber, imageData, results }) {
           highlightedCtx.strokeStyle = '#cc00cc'
           highlightedCtx.lineWidth = 3
           highlightedCtx.strokeRect(element.x - padding, element.y - padding, element.width + padding * 2, element.height + padding * 2)
+
+          // If hybrid detection found text content, show a label
+          if (element.text1 && element.text2) {
+            const labelY = element.y - padding - 10
+            const labelText = `"${element.text1}" overlaps "${element.text2}"`
+
+            // Draw background for label
+            highlightedCtx.font = '12px Arial'
+            const textMetrics = highlightedCtx.measureText(labelText)
+            const labelWidth = textMetrics.width + 10
+            const labelHeight = 18
+
+            highlightedCtx.fillStyle = 'rgba(204, 0, 204, 0.9)'
+            highlightedCtx.fillRect(element.x - padding, labelY - labelHeight, labelWidth, labelHeight)
+
+            // Draw text
+            highlightedCtx.fillStyle = 'white'
+            highlightedCtx.fillText(labelText, element.x - padding + 5, labelY - 5)
+          }
         })
       }
 
