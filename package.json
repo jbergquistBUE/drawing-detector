@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.0.1",
   "type": "module",
-  "homepage": "https://bue.github.io/drawing-detector",
+  "homepage": "https://jbergquistbue.github.io/drawing-detector",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
