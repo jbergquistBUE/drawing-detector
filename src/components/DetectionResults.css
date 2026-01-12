@@ -1,0 +1,123 @@
+.detection-results {
+  width: 100%;
+  margin-top: 2rem;
+}
+
+.detection-results h2 {
+  text-align: center;
+  margin-bottom: 2rem;
+  color: #646cff;
+}
+
+.results-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.result-card {
+  border-radius: 12px;
+  padding: 1.5rem;
+  background-color: rgba(255, 255, 255, 0.05);
+  border: 2px solid transparent;
+  transition: transform 0.2s ease;
+}
+
+.result-card:hover {
+  transform: translateY(-2px);
+}
+
+.result-card.status-ok {
+  border-color: #4caf50;
+}
+
+.result-card.status-warning {
+  border-color: #ff9800;
+}
+
+.result-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.result-icon {
+  font-size: 1.5rem;
+}
+
+.result-header h3 {
+  font-size: 1.2rem;
+  margin: 0;
+}
+
+.result-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.result-message {
+  color: #ccc;
+  margin: 0;
+}
+
+.result-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  color: #888;
+}
+
+.result-count {
+  font-weight: 600;
+  color: #ff9800;
+}
+
+.result-locations {
+  color: #999;
+}
+
+.results-summary {
+  text-align: center;
+  padding: 1.5rem;
+  background-color: rgba(100, 108, 255, 0.1);
+  border-radius: 12px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #646cff;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  align-items: center;
+}
+
+.results-summary p {
+  margin: 0;
+}
+
+.download-button {
+  background-color: #646cff;
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(100, 108, 255, 0.3);
+}
+
+.download-button:hover {
+  background-color: #535bf2;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(100, 108, 255, 0.4);
+}
+
+.download-button:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(100, 108, 255, 0.3);
+}

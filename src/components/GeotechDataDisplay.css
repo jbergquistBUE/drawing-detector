@@ -1,0 +1,209 @@
+.geotech-data-display {
+  width: 100%;
+  margin-bottom: 3rem;
+  padding: 2rem;
+  background: #ffffff;
+  border-radius: 12px;
+  border: 2px solid #4caf50;
+  box-shadow: 0 2px 8px rgba(76, 175, 80, 0.1);
+}
+
+.geotech-data-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 2px solid #e0e0e0;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.geotech-data-header h3 {
+  margin: 0;
+  color: #2c3e50;
+  font-size: 1.3rem;
+}
+
+.geotech-data-summary {
+  padding: 0.5rem 1rem;
+  background: #e8f5e9;
+  border-radius: 6px;
+  color: #2e7d32;
+  font-size: 0.95rem;
+}
+
+.geotech-data-summary .match-count {
+  color: #4caf50;
+  font-weight: 600;
+}
+
+.geotech-data-summary .mismatch-count {
+  color: #f44336;
+  font-weight: 600;
+}
+
+.geotech-data-summary .missing-count {
+  color: #ff9800;
+  font-weight: 600;
+}
+
+.geotech-data-table-container {
+  overflow-x: auto;
+  margin-bottom: 1rem;
+}
+
+.geotech-data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+
+.geotech-data-table th {
+  background: #f5f5f5;
+  color: #333;
+  font-weight: 600;
+  text-align: left;
+  padding: 0.75rem 1rem;
+  border-bottom: 2px solid #ddd;
+}
+
+.geotech-data-table td {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.geotech-data-table tr.found {
+  background: #f1f8f4;
+}
+
+.geotech-data-table tr.not-found {
+  background: #fff8e1;
+}
+
+.geotech-data-table tr.status-match {
+  background: #e8f5e9;
+}
+
+.geotech-data-table tr.status-mismatch {
+  background: #ffebee;
+}
+
+.geotech-data-table tr.status-missing {
+  background: #fff3e0;
+}
+
+.geotech-data-table tr:hover {
+  background: #e3f2fd;
+}
+
+.param-label {
+  font-family: 'Courier New', monospace;
+  color: #1976d2;
+}
+
+.param-description {
+  color: #555;
+}
+
+.param-value {
+  font-weight: 500;
+}
+
+.param-value.geotech-value {
+  background: #f1f8ff;
+}
+
+.param-value.drawing-value {
+  background: #fffbf0;
+}
+
+.status-cell {
+  text-align: center;
+  width: 60px;
+}
+
+.status-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  font-size: 1.1rem;
+  font-weight: bold;
+}
+
+.status-icon.match {
+  background: #c8e6c9;
+  color: #2e7d32;
+}
+
+.status-icon.mismatch {
+  background: #ffcdd2;
+  color: #c62828;
+}
+
+.status-icon.missing {
+  background: #ffe0b2;
+  color: #e65100;
+}
+
+.value-found {
+  color: #2e7d32;
+  background: #c8e6c9;
+  padding: 0.25rem 0.75rem;
+  border-radius: 4px;
+  display: inline-block;
+  font-family: 'Courier New', monospace;
+}
+
+.value-missing {
+  color: #f57c00;
+  font-style: italic;
+}
+
+.param-page {
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.geotech-data-warning {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem;
+  background: #fff3e0;
+  border: 1px solid #ff9800;
+  border-radius: 6px;
+  color: #e65100;
+  font-size: 0.95rem;
+}
+
+.warning-icon {
+  font-size: 1.5rem;
+}
+
+@media (max-width: 768px) {
+  .geotech-data-display {
+    padding: 1.5rem;
+  }
+
+  .geotech-data-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .geotech-data-table {
+    font-size: 0.85rem;
+  }
+
+  .geotech-data-table th,
+  .geotech-data-table td {
+    padding: 0.5rem 0.75rem;
+  }
+
+  .param-description {
+    display: none;
+  }
+}

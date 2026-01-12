@@ -1,0 +1,131 @@
+.geotech-upload {
+  width: 100%;
+}
+
+.geotech-upload-container {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+#geotech-file-input {
+  display: none;
+}
+
+.geotech-upload-label {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem 2rem;
+  background: white;
+  border: 2px dashed #4a90e2;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-size: 1rem;
+  color: #333;
+  min-width: 300px;
+}
+
+.geotech-upload-label:hover:not(.uploaded) {
+  background: #e3f2fd;
+  border-color: #2196f3;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(74, 144, 226, 0.2);
+}
+
+.geotech-upload-label.uploaded {
+  background: #e8f5e9;
+  border: 2px solid #4caf50;
+  cursor: default;
+}
+
+.geotech-upload-icon {
+  font-size: 1.5rem;
+}
+
+.geotech-processing {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.spinner {
+  width: 20px;
+  height: 20px;
+  border: 3px solid #f3f3f3;
+  border-top: 3px solid #4a90e2;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.geotech-success {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: #2e7d32;
+  font-weight: 500;
+}
+
+.checkmark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  background: #4caf50;
+  color: white;
+  border-radius: 50%;
+  font-size: 1rem;
+  font-weight: bold;
+}
+
+.geotech-clear-btn {
+  padding: 0.75rem 1.5rem;
+  background: #ff5722;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.geotech-clear-btn:hover {
+  background: #e64a19;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(255, 87, 34, 0.3);
+}
+
+.geotech-error {
+  margin-top: 1rem;
+  padding: 1rem;
+  background: #ffebee;
+  border: 1px solid #ef5350;
+  border-radius: 6px;
+  color: #c62828;
+  font-size: 0.95rem;
+}
+
+@media (max-width: 768px) {
+  .geotech-upload {
+    padding: 1.5rem;
+  }
+
+  .geotech-upload-label {
+    min-width: 100%;
+    justify-content: center;
+  }
+
+  .geotech-clear-btn {
+    width: 100%;
+  }
+}
