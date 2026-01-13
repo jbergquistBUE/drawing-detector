@@ -7,11 +7,9 @@
 /**
  * Detects missing references from PDF text content
  * @param {Object} pdfPage - PDF page object with text items
- * @param {number} canvasWidth - Canvas width for coordinate scaling
- * @param {number} canvasHeight - Canvas height for coordinate scaling
- * @returns {Array} Array of missing reference locations
+ * @returns {Array} Array of missing reference locations in PDF coordinates
  */
-const detectNoRefsFromPDF = (pdfPage, canvasWidth, canvasHeight) => {
+const detectNoRefsFromPDF = (pdfPage) => {
   if (!pdfPage || !pdfPage.textItems) {
     return []
   }
@@ -24,6 +22,7 @@ const detectNoRefsFromPDF = (pdfPage, canvasWidth, canvasHeight) => {
 
   console.log('[NoRefs] Analyzing text items...')
   console.log(`[NoRefs] Total text items: ${pdfPage.textItems.length}`)
+  console.log('[NoRefs] Viewport height:', pdfPage.viewport.height)
 
   for (const item of pdfPage.textItems) {
     const text = item.str.trim()
@@ -36,25 +35,38 @@ const detectNoRefsFromPDF = (pdfPage, canvasWidth, canvasHeight) => {
     if (noRefPattern.test(text)) {
       console.log(`[NoRefs] ✓ Matched pattern: "${text}"`)
 
-      // Scale PDF coordinates to image coordinates
-      const scaleX = canvasWidth / pdfPage.viewport.width
-      const scaleY = canvasHeight / pdfPage.viewport.height
+      // PDF.js item.transform contains raw PDF coordinates (bottom-left origin)
+      // We need to apply the viewport transform to get canvas coordinates (top-left origin)
+      // The viewport.transform handles scale AND Y-axis flip
+      const viewportTransform = pdfPage.viewport.transform
 
-      // PDF coordinates have origin at bottom-left, canvas has origin at top-left
-      const x = Math.floor(item.transform[4] * scaleX)
-      const y = Math.floor(canvasHeight - (item.transform[5] + item.height) * scaleY)
-      const width = Math.ceil(item.width * scaleX)
-      const height = Math.ceil(item.height * scaleY)
+      // Apply viewport transform to the item's position
+      // transform[4] = x, transform[5] = y in PDF space
+      const pdfX = item.transform[4]
+      const pdfY = item.transform[5]
 
-      console.log(`[NoRefs] "${text}" at PDF coords (${item.transform[4]}, ${item.transform[5]}) -> canvas (${x}, ${y}) size ${width}x${height}`)
+      // Manual transformation: apply viewport transform matrix
+      // Viewport transform is [scaleX, 0, 0, -scaleY, 0, height*scale]
+      // This flips Y and scales coordinates
+      const canvasX = viewportTransform[0] * pdfX + viewportTransform[4]
+      const canvasY = viewportTransform[3] * pdfY + viewportTransform[5]
+
+      // Scale width/height by the viewport scale
+      const scale = pdfPage.viewport.scale
+      const width = Math.ceil(item.width * scale)
+      const height = Math.ceil(item.height * scale)
+
+      console.log(`[NoRefs] "${text}" PDF coords: (${pdfX.toFixed(1)}, ${pdfY.toFixed(1)}) -> Canvas coords: (${canvasX.toFixed(1)}, ${canvasY.toFixed(1)}) size ${width}x${height}`)
+      console.log(`[NoRefs] Viewport transform:`, viewportTransform)
 
       noRefs.push({
-        x: x,
-        y: y,
+        x: Math.floor(canvasX),
+        y: Math.floor(canvasY) - height,  // Shift up by height to align with text
         width: width,
         height: height,
         text: text,
-        detectionMethod: 'pdf-text'
+        detectionMethod: 'pdf-text',
+        isCanvasCoords: true  // Already converted to canvas space
       })
     }
   }
@@ -63,41 +75,28 @@ const detectNoRefsFromPDF = (pdfPage, canvasWidth, canvasHeight) => {
 }
 
 export async function detectNoRefs(imageData, onProgress, pdfPage = null) {
-  const canvas = document.createElement('canvas')
-  const ctx = canvas.getContext('2d')
+  // No need for canvas or image rendering - work directly with PDF data
+  let elements = []
 
-  const img = new Image()
-  img.src = imageData
+  // Use PDF text extraction if available
+  if (pdfPage && pdfPage.textItems) {
+    console.log('[NoRefs] Using PDF text detection')
+    elements = detectNoRefsFromPDF(pdfPage)
+    console.log(`[NoRefs] Found ${elements.length} missing references`)
 
-  return new Promise((resolve) => {
-    img.onload = () => {
-      canvas.width = img.width
-      canvas.height = img.height
-      ctx.drawImage(img, 0, 0)
-
-      let elements = []
-
-      // Use PDF text extraction if available
-      if (pdfPage && pdfPage.textItems) {
-        console.log('[NoRefs] Using PDF text detection')
-        elements = detectNoRefsFromPDF(pdfPage, canvas.width, canvas.height)
-        console.log(`[NoRefs] Found ${elements.length} missing references`)
-
-        if (onProgress) {
-          onProgress(elements.length)
-        }
-      } else {
-        console.log('[NoRefs] No PDF data available, cannot detect missing references')
-      }
-
-      resolve({
-        detected: elements.length > 0,
-        count: elements.length,
-        locations: elements,
-        message: elements.length > 0
-          ? `Found ${elements.length} missing reference(s) (-/---)`
-          : 'No missing references detected'
-      })
+    if (onProgress) {
+      onProgress(elements.length)
     }
-  })
+  } else {
+    console.log('[NoRefs] No PDF data available, cannot detect missing references')
+  }
+
+  return {
+    detected: elements.length > 0,
+    count: elements.length,
+    locations: elements,
+    message: elements.length > 0
+      ? `Found ${elements.length} missing reference(s) (-/---)`
+      : 'No missing references detected'
+  }
 }

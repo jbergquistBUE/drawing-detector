@@ -98,6 +98,7 @@ function FileUpload({ onFileProcessed }) {
 
       pdfPages.push({
         pageNumber: pageNum,
+        page: page, // Store the page object for re-rendering
         items: items,
         textItems: textContent.items, // Raw text items with transform arrays
         fullText: items.map(item => item.text).join(' '),

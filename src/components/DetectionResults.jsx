@@ -1,8 +1,7 @@
 import './DetectionResults.css'
-import ImageVisualization from './ImageVisualization'
 import jsPDF from 'jspdf'
 
-function DetectionResults({ results, pages, geotechData, summaryOnly = false }) {
+function DetectionResults({ results, pages, pdfPages, geotechData }) {
   const detectorNames = {
     redElements: 'Red Elements',
     highlights: 'Highlights',
@@ -40,105 +39,140 @@ function DetectionResults({ results, pages, geotechData, summaryOnly = false }) 
   }
 
   const downloadHighlightedPDF = async () => {
-    // Create canvases with highlights for each page
-    const highlightedCanvases = []
+    try {
+      // Render PDF pages directly with highlights in PDF coordinate space
+      const highlightedCanvases = []
 
-    for (let i = 0; i < pages.length; i++) {
-      const pageData = pages[i]
-      const pageResults = results[i]
+      for (let i = 0; i < pdfPages.length; i++) {
+        const pdfPage = pdfPages[i]
+        const pageResults = results[i]
 
-      // Create a canvas and draw the highlighted version
-      const canvas = document.createElement('canvas')
-      const ctx = canvas.getContext('2d')
+        // Render PDF page to canvas at original size
+        const viewport = pdfPage.viewport
+        const canvas = document.createElement('canvas')
+        const ctx = canvas.getContext('2d')
 
-      await new Promise((resolve) => {
-        const img = new Image()
-        img.src = pageData
-        img.onload = () => {
-          canvas.width = img.width
-          canvas.height = img.height
-          ctx.drawImage(img, 0, 0)
+        canvas.width = viewport.width
+        canvas.height = viewport.height
 
-          // Draw red elements in green
-          if (pageResults.redElements?.locations) {
-            pageResults.redElements.locations.forEach(element => {
-              const padding = 5
-              // Fill with semi-transparent green
-              ctx.fillStyle = 'rgba(0, 204, 0, 0.2)'
-              ctx.fillRect(element.x - padding, element.y - padding, element.width + padding * 2, element.height + padding * 2)
-              // Stroke with solid green
-              ctx.strokeStyle = '#00cc00'
-              ctx.lineWidth = 3
-              ctx.strokeRect(element.x - padding, element.y - padding, element.width + padding * 2, element.height + padding * 2)
-            })
+        // Render the PDF page
+        await pdfPage.page.render({
+          canvasContext: ctx,
+          viewport: viewport
+        }).promise
+
+        console.log(`[PDF Export] Page ${i+1}: Canvas size ${canvas.width}x${canvas.height}, Viewport size ${viewport.width}x${viewport.height}`)
+
+        // Helper function to convert PDF coordinates to canvas coordinates
+        const pdfToCanvas = (element) => {
+          // PDF.js coordinates:
+          // - X: left edge (same in both coordinate systems)
+          // - Y: baseline of text in PDF space (bottom-left origin)
+          // Canvas needs: top-left corner in canvas space (top-left origin)
+          // Conversion: canvasY = canvasHeight - pdfY (baseline becomes top)
+          const converted = {
+            x: element.x,
+            y: canvas.height - element.y,  // Flip Y axis - baseline to top
+            width: element.width,
+            height: element.height
           }
-
-          // Draw highlights in orange
-          if (pageResults.highlights?.locations) {
-            pageResults.highlights.locations.forEach(element => {
-              const padding = 5
-              // Fill with semi-transparent orange
-              ctx.fillStyle = 'rgba(255, 102, 0, 0.2)'
-              ctx.fillRect(element.x - padding, element.y - padding, element.width + padding * 2, element.height + padding * 2)
-              // Stroke with solid orange
-              ctx.strokeStyle = '#ff6600'
-              ctx.lineWidth = 3
-              ctx.strokeRect(element.x - padding, element.y - padding, element.width + padding * 2, element.height + padding * 2)
-            })
-          }
-
-          // Draw no-refs in blue
-          if (pageResults.noRefs?.locations) {
-            pageResults.noRefs.locations.forEach(element => {
-              const padding = 5
-              // Fill with semi-transparent blue
-              ctx.fillStyle = 'rgba(0, 102, 255, 0.2)'
-              ctx.fillRect(element.x - padding, element.y - padding, element.width + padding * 2, element.height + padding * 2)
-              // Stroke with solid blue
-              ctx.strokeStyle = '#0066ff'
-              ctx.lineWidth = 3
-              ctx.strokeRect(element.x - padding, element.y - padding, element.width + padding * 2, element.height + padding * 2)
-            })
-          }
-
-          // Draw overlapping text in purple
-          if (pageResults.overlappingText?.locations) {
-            pageResults.overlappingText.locations.forEach(element => {
-              const padding = 5
-              // Fill with semi-transparent purple
-              ctx.fillStyle = 'rgba(204, 0, 204, 0.2)'
-              ctx.fillRect(element.x - padding, element.y - padding, element.width + padding * 2, element.height + padding * 2)
-              // Stroke with solid purple
-              ctx.strokeStyle = '#cc00cc'
-              ctx.lineWidth = 3
-              ctx.strokeRect(element.x - padding, element.y - padding, element.width + padding * 2, element.height + padding * 2)
-            })
-          }
-
-          // Geotech verification results are shown in a comparison table instead of PDF markup
-
-          highlightedCanvases.push(canvas)
-          resolve()
+          console.log(`[PDF Export] Canvas height: ${canvas.height}`)
+          console.log(`[PDF Export] Converting PDF coords (${element.x}, ${element.y}, w:${element.width}, h:${element.height})`)
+          console.log(`[PDF Export] -> Canvas coords (${converted.x}, ${converted.y}, w:${converted.width}, h:${converted.height})`)
+          return converted
         }
-      })
-    }
 
-    // Create PDF with all highlighted pages
-    const pdf = new jsPDF({
-      orientation: highlightedCanvases[0].width > highlightedCanvases[0].height ? 'landscape' : 'portrait',
-      unit: 'px',
-      format: [highlightedCanvases[0].width, highlightedCanvases[0].height]
-    })
+        // Draw red elements in green (already in canvas coordinates)
+        if (pageResults.redElements?.locations) {
+          pageResults.redElements.locations.forEach(element => {
+            const padding = 5
+            // Fill with semi-transparent green
+            ctx.fillStyle = 'rgba(0, 204, 0, 0.2)'
+            ctx.fillRect(element.x - padding, element.y - padding, element.width + padding * 2, element.height + padding * 2)
+            // Stroke with solid green
+            ctx.strokeStyle = '#00cc00'
+            ctx.lineWidth = 3
+            ctx.strokeRect(element.x - padding, element.y - padding, element.width + padding * 2, element.height + padding * 2)
+          })
+        }
 
-    for (let i = 0; i < highlightedCanvases.length; i++) {
-      if (i > 0) {
-        pdf.addPage([highlightedCanvases[i].width, highlightedCanvases[i].height])
+        // Draw highlights in orange (already in canvas coordinates)
+        if (pageResults.highlights?.locations) {
+          pageResults.highlights.locations.forEach(element => {
+            const padding = 5
+            // Fill with semi-transparent orange
+            ctx.fillStyle = 'rgba(255, 102, 0, 0.2)'
+            ctx.fillRect(element.x - padding, element.y - padding, element.width + padding * 2, element.height + padding * 2)
+            // Stroke with solid orange
+            ctx.strokeStyle = '#ff6600'
+            ctx.lineWidth = 3
+            ctx.strokeRect(element.x - padding, element.y - padding, element.width + padding * 2, element.height + padding * 2)
+          })
+        }
+
+        // Draw no-refs in blue
+        if (pageResults.noRefs?.locations) {
+          console.log(`[PDF Export] Page ${i+1} no-refs raw data:`, pageResults.noRefs.locations)
+          pageResults.noRefs.locations.forEach(element => {
+            console.log(`[PDF Export] Raw no-ref element:`, element)
+            // Check if coordinates are already in canvas space (no transformation needed)
+            const coords = element.isCanvasCoords ? element : pdfToCanvas(element)
+            console.log(`[PDF Export] Coords for drawing (isCanvas=${element.isCanvasCoords}):`, coords)
+            const padding = 5
+            // Fill with semi-transparent blue
+            ctx.fillStyle = 'rgba(0, 102, 255, 0.2)'
+            ctx.fillRect(coords.x - padding, coords.y - padding, coords.width + padding * 2, coords.height + padding * 2)
+            // Stroke with solid blue
+            ctx.strokeStyle = '#0066ff'
+            ctx.lineWidth = 3
+            ctx.strokeRect(coords.x - padding, coords.y - padding, coords.width + padding * 2, coords.height + padding * 2)
+          })
+        }
+
+        // Draw overlapping text in purple
+        if (pageResults.overlappingText?.locations) {
+          console.log(`[PDF Export] Page ${i+1} overlapping text raw data:`, pageResults.overlappingText.locations)
+          pageResults.overlappingText.locations.forEach(element => {
+            console.log(`[PDF Export] Raw overlapping text element:`, element)
+            // Check if coordinates are already in canvas space (no transformation needed)
+            const coords = element.isCanvasCoords ? element : pdfToCanvas(element)
+            console.log(`[PDF Export] Coords for drawing (isCanvas=${element.isCanvasCoords}):`, coords)
+            const padding = 5
+            // Fill with semi-transparent purple
+            ctx.fillStyle = 'rgba(204, 0, 204, 0.2)'
+            ctx.fillRect(coords.x - padding, coords.y - padding, coords.width + padding * 2, coords.height + padding * 2)
+            // Stroke with solid purple
+            ctx.strokeStyle = '#cc00cc'
+            ctx.lineWidth = 3
+            ctx.strokeRect(coords.x - padding, coords.y - padding, coords.width + padding * 2, coords.height + padding * 2)
+          })
+        }
+
+        // Geotech verification results are shown in a comparison table instead of PDF markup
+
+        highlightedCanvases.push(canvas)
       }
-      const imgData = highlightedCanvases[i].toDataURL('image/jpeg', 0.95)
-      pdf.addImage(imgData, 'JPEG', 0, 0, highlightedCanvases[i].width, highlightedCanvases[i].height)
-    }
 
-    pdf.save('highlighted-drawing.pdf')
+      // Create PDF with all highlighted pages
+      const pdf = new jsPDF({
+        orientation: highlightedCanvases[0].width > highlightedCanvases[0].height ? 'landscape' : 'portrait',
+        unit: 'px',
+        format: [highlightedCanvases[0].width, highlightedCanvases[0].height]
+      })
+
+      for (let i = 0; i < highlightedCanvases.length; i++) {
+        if (i > 0) {
+          pdf.addPage([highlightedCanvases[i].width, highlightedCanvases[i].height])
+        }
+        const imgData = highlightedCanvases[i].toDataURL('image/jpeg', 0.95)
+        pdf.addImage(imgData, 'JPEG', 0, 0, highlightedCanvases[i].width, highlightedCanvases[i].height)
+      }
+
+      pdf.save('highlighted-drawing.pdf')
+    } catch (error) {
+      console.error('Error generating highlighted PDF:', error)
+      alert(`Error generating PDF: ${error.message}`)
+    }
   }
 
   return (
@@ -234,16 +268,6 @@ function DetectionResults({ results, pages, geotechData, summaryOnly = false }) 
           Download Highlighted PDF
         </button>
       </div>
-
-      {/* Display each page separately - only if not summaryOnly mode */}
-      {!summaryOnly && results.map((pageResult, index) => (
-        <ImageVisualization
-          key={index}
-          pageNumber={pageResult.pageNumber}
-          imageData={pages[index]}
-          results={pageResult}
-        />
-      ))}
     </div>
   )
 }

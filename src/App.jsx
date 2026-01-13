@@ -3,7 +3,6 @@ import FileUpload from './components/FileUpload'
 import GeotechUpload from './components/GeotechUpload'
 import GeotechDataDisplay from './components/GeotechDataDisplay'
 import DetectionResults from './components/DetectionResults'
-import ImageVisualization from './components/ImageVisualization'
 import { detectRedElements } from './detectors/redElements'
 import { detectHighlights } from './detectors/highlights'
 import { detectNoRefs } from './detectors/noRefs'
@@ -232,7 +231,7 @@ function App() {
           <FileUpload onFileProcessed={handleFileUpload} />
         </div>
 
-        {results && <DetectionResults results={results} pages={pages} geotechData={geotechData} summaryOnly={true} />}
+        {results && <DetectionResults results={results} pages={pages} pdfPages={pdfPages} geotechData={geotechData} />}
 
         <div style={{
           marginTop: '2rem',
@@ -293,16 +292,6 @@ function App() {
             </>
           )}
         </div>
-
-        {/* Individual page visualizations appear after geotech section */}
-        {results && results.map((pageResult, index) => (
-          <ImageVisualization
-            key={index}
-            pageNumber={pageResult.pageNumber}
-            imageData={pages[index]}
-            results={pageResult}
-          />
-        ))}
 
         {loading && (
           <div className="progress-container" style={{
